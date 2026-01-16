@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Safety First - Dashboard K3</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root { --primary: #ff4757; --bg: #f1f2f6; }
+        body { background-color: var(--bg); font-family: 'Poppins', sans-serif; color: #2f3542; }
+        .navbar { background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%); padding: 15px 0; border-radius: 0 0 20px 20px; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.3); }
+        .stat-card { background: white; border-radius: 15px; padding: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); height: 100%; border-bottom: 4px solid #ddd; }
+        .stat-card.wait { border-color: #ff4757; } .stat-card.proc { border-color: #ffa502; } .stat-card.done { border-color: #2ed573; }
+        .stat-num { font-size: 1.5rem; font-weight: 700; display: block; }
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .card-modern { background: #fff; border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: 0.2s; cursor: pointer; }
+        .card-modern:active { transform: scale(0.95); }
+        .form-control, .form-select { border-radius: 12px; padding: 10px; border: 1px solid #dfe4ea; }
+        .btn-modern { background: var(--primary); border: none; border-radius: 12px; padding: 12px; color: white; width: 100%; font-weight: 600; box-shadow: 0 4px 10px rgba(255, 71, 87, 0.3); }
+        canvas.sig-pad { border: 2px dashed #ccc; border-radius: 10px; cursor: crosshair; width: 100%; touch-action: none; background: #fff; }
+        .bell-area { position: relative; cursor: pointer; margin-right: 15px; }
+        .notif-dot { position: absolute; top: 0; right: 0; width: 10px; height: 10px; background: #f1c40f; border-radius: 50%; display: none; border: 2px solid #ff4757; }
+        .bell-ring { animation: ring 4s .7s ease-in-out infinite; color: #fff !important; }
+        @keyframes ring { 0%{transform:rotate(0)} 10%{transform:rotate(30deg)} 30%{transform:rotate(-28deg)} 50%{transform:rotate(34deg)} 100%{transform:rotate(0)} }
+        .notif-menu { position: absolute; top: 40px; right: -10px; width: 260px; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: none; z-index: 999; }
+        .hidden { display: none !important; }
+        .loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column; }
+        
+        /* PDF STYLING */
+        .pdf-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
+        .pdf-table th, .pdf-table td { border: 1px solid black; padding: 4px; vertical-align: top; }
+        .bg-grey { background-color: #f0f0f0; }
+        .header-box { border: none; padding: 0; margin-bottom: 10px; }
+        .header-table { width: 100%; border: none; }
+        .header-table td { border: none; vertical-align: middle; }
+        
+        /* ADMIN DASHBOARD TABLE STYLE */
+        .admin-detail-table { font-size: 0.8rem; margin-bottom: 5px; width: 100%; }
+        .admin-detail-table td { padding: 2px 5px; vertical-align: top; }
+        .admin-detail-table td.label { width: 30%; font-weight: 600; color: #666; white-space: nowrap; }
+        .admin-detail-table td.colon { width: 2%; text-align: center; }
+        .admin-detail-table td.value { width: 68%; color: #222; font-weight: 500; }
+        .desc-box { font-size: 0.8rem; line-height: 1.3; white-space: normal; word-wrap: break-word; }
+
+        /* PDF PELAPOR NO TABLE STYLE */
+        .pdf-row { display: flex; margin-bottom: 5px; font-size: 11px; align-items: flex-start; }
+        .pdf-label { width: 180px; font-weight: normal; flex-shrink: 0; }
+        .pdf-val { flex: 1; font-weight: bold; }
+        .pdf-content { padding-left: 10px; }
+        
+        /* PAGE BREAK FOR PDF ATTACHMENT */
+        .html2pdf__page-break { page-break-before: always; }
+
+        @media print { body * { visibility: hidden; } #printableArea, #printableArea * { visibility: visible; position: absolute; left: 0; top: 0; width: 100%; } }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay" class="loading">
+    <div class="spinner-border text-danger" role="status"></div>
+    <div class="mt-2 fw-bold text-secondary">Memproses...</div>
+</div>
+
+<nav class="navbar navbar-dark sticky-top">
+    <div class="container d-flex justify-content-between align-items-center">
+        <span class="navbar-brand fw-bold"><i class="fas fa-shield-alt me-2"></i>Si-Safety</span>
+        <div class="d-flex align-items-center">
+            <div id="bellWrapper" class="bell-area hidden">
+                <i class="fas fa-bell fa-lg text-white-50" id="bellIcon" onclick="toggleMenu()"></i>
+                <div id="bellDot" class="notif-dot"></div>
+                <div id="notifMenu" class="notif-menu">
+                    <h6 class="fw-bold mb-2 text-dark">Notifikasi</h6>
+                    <p id="notifText" class="small text-muted mb-2">Tidak ada baru.</p>
+                    <button id="btnRead" class="btn btn-sm btn-outline-danger w-100 hidden" onclick="markRead()">Tandai Dibaca</button>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-light text-danger rounded-pill fw-bold px-3 shadow-sm" onclick="showPage('page-home')">Home</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4 mb-5">
+    
+    <div id="page-home">
+        <div class="bg-white p-3 rounded-pill shadow-sm mb-4 d-flex align-items-center">
+            <div class="bg-danger text-white rounded-circle p-2 me-3"><i class="fas fa-map-marker-alt"></i></div>
+            <div>
+                <small class="text-muted d-block" style="font-size: 0.7em;">POSISI ANDA</small>
+                <strong id="displayRoom" class="text-dark text-uppercase">...</strong>
+            </div>
+        </div>
+
+        <h6 class="fw-bold text-secondary mb-3 ps-2">Menu Laporan</h6>
+        <div class="menu-grid mb-4">
+            <div class="card-modern" onclick="openFormB3()"><i class="fas fa-flask fa-2x text-warning mb-2"></i><br><small class="fw-bold">Tumpahan B3</small></div>
+            <div class="card-modern" onclick="openForm('Tertusuk Jarum')"><i class="fas fa-syringe fa-2x text-primary mb-2"></i><br><small class="fw-bold">Jarum</small></div>
+            <div class="card-modern" style="grid-column: span 2;" onclick="openFormKK()">
+                <div class="d-flex align-items-center justify-content-center gap-3">
+                    <i class="fas fa-hard-hat fa-2x text-secondary"></i>
+                    <div class="text-start"><h6 class="fw-bold mb-0 text-dark">Kecelakaan Kerja</h6><small class="text-muted">Formulir Lengkap & TTD</small></div>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-dark w-100 py-3 rounded-4 shadow-sm mb-2" onclick="showPage('page-track')"><i class="fas fa-search me-2"></i> Cek Status</button>
+        <div class="text-center mt-3" id="adminLoginArea"><button class="btn btn-link text-muted text-decoration-none btn-sm" onclick="showLoginModal()">Login Admin</button></div>
+    </div>
+
+    <div id="page-form" class="hidden">
+        <div class="bg-white p-4 rounded-4 shadow-sm">
+            <h5 class="fw-bold text-danger mb-3">Buat Laporan</h5>
+            <form id="formLapor">
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><small class="fw-bold text-muted">JENIS</small><input type="text" id="inpJenis" class="form-control fw-bold bg-light" readonly></div>
+                    <div class="col-6"><small class="fw-bold text-muted">LOKASI</small><input type="text" id="inpRoom" class="form-control fw-bold bg-light" readonly></div>
+                </div>
+                <div class="mb-3"><label class="fw-bold small">Pelapor</label><input type="text" id="inpPelapor" class="form-control" placeholder="Nama (Opsional)"></div>
+                <div class="mb-4"><label class="fw-bold small">Kronologi</label><textarea id="inpDesc" class="form-control" rows="4" required></textarea></div>
+                <button type="submit" class="btn-modern">KIRIM</button>
+                <button type="button" class="btn btn-link w-100 mt-2 text-muted text-decoration-none" onclick="showPage('page-home')">Batal</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="page-form-b3" class="hidden">
+        <div class="bg-white p-3 rounded-4 shadow-sm">
+            <h5 class="fw-bold text-warning mb-3"><i class="fas fa-flask me-2"></i>Laporan Tumpahan B3</h5>
+            <form id="formB3">
+                <input type="hidden" id="inpJenisB3" value="Tumpahan B3">
+                
+                <div class="mb-2"><label class="small fw-bold">Tanggal & Jam</label><input type="datetime-local" id="b3Waktu" class="form-control" required></div>
+                
+                <div class="mb-2"><label class="small fw-bold">Kategori Tumpahan</label>
+                    <select id="b3Kategori" class="form-select">
+                        <option value="Bahan Berbahaya dan Beracun (B3)">Bahan Berbahaya dan Beracun (B3)</option>
+                        <option value="Limbah B3">Limbah B3</option>
+                    </select>
+                </div>
+
+                <div class="mb-2"><label class="small fw-bold">Jenis Bahan</label><input type="text" id="b3JenisBahan" class="form-control" placeholder="Cth: Cairan Infus, Darah..." required></div>
+                <div class="mb-2"><label class="small fw-bold">Lokasi Kejadian</label><input type="text" id="b3Lokasi" class="form-control" required></div>
+                <div class="mb-2"><label class="small fw-bold">Jumlah Estimasi</label>
+                    <div class="input-group"><input type="text" id="b3Jumlah" class="form-control" placeholder="Cth: 500"><span class="input-group-text">Kg / Ltr</span></div>
+                </div>
+                <div class="mb-2"><label class="small fw-bold">Apakah Mengenai Orang?</label>
+                    <select id="b3MengenaiOrang" class="form-select"><option value="Tidak">Tidak</option><option value="Ya">Ya</option></select>
+                </div>
+                <div class="mb-2"><label class="small fw-bold">Penanganan yang telah dilakukan</label><textarea id="b3Penanganan" class="form-control" rows="2"></textarea></div>
+                <div class="mb-3"><label class="small fw-bold">Keterangan Kondisi Tempat Kejadian setelah dilakukan penanganan</label><textarea id="b3Kondisi" class="form-control" rows="2"></textarea></div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold text-primary mb-1">Dokumentasi (Foto Kejadian/Penanganan)</label>
+                    <input type="file" id="b3Foto" class="form-control" accept="image/*">
+                    <small class="text-muted" style="font-size:0.7rem;">*Foto otomatis diperkecil agar lancar.</small>
+                </div>
+
+                <div class="mb-2"><label class="small fw-bold">Pembuat Laporan</label><input type="text" id="b3Pembuat" class="form-control" required></div>
+                <div class="mb-4">
+                    <label class="small fw-bold d-block mb-1">Tanda Tangan Pembuat Laporan</label>
+                    <canvas id="sig-b3" class="sig-pad" height="150"></canvas>
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-1" onclick="clearSig('sig-b3')">Hapus Tanda Tangan</button>
+                </div>
+
+                <button type="submit" class="btn-modern bg-warning text-dark fw-bold">KIRIM LAPORAN B3</button>
+                <button type="button" class="btn btn-link w-100 mt-2 text-muted text-decoration-none" onclick="showPage('page-home')">Batal</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="page-form-kk" class="hidden">
+        <div class="bg-white p-3 rounded-4 shadow-sm">
+            <h5 class="fw-bold text-dark mb-3"><i class="fas fa-clipboard-list me-2"></i>Form Kecelakaan Kerja</h5>
+            <form id="formKK">
+                <input type="hidden" id="inpJenisKK" value="Kecelakaan Kerja">
+                
+                <div class="mb-2"><label class="small fw-bold">Lokasi (Scan)</label><input type="text" id="kkRoom" class="form-control bg-light fw-bold" readonly></div>
+                <div class="mb-2"><label class="small fw-bold">Nama Pelapor</label><input type="text" id="kkPelapor" class="form-control" required></div>
+                <div class="mb-2"><label class="small">No WhatsApp</label><input type="number" id="kkWA" class="form-control" placeholder="08..." required></div>
+                
+                <hr class="my-3">
+                <h6 class="fw-bold text-danger">Data Korban</h6>
+                <div class="mb-2"><label class="small">Nama Pegawai</label><input type="text" id="kkNama" class="form-control" required></div>
+                <div class="mb-2"><label class="small">Ruangan Asal Korban</label><input type="text" id="kkRuanganKorban" class="form-control" required></div>
+                <div class="mb-2"><label class="small">NIP</label><input type="number" id="kkNIP" class="form-control"></div>
+                <div class="mb-2"><label class="small">Status Kepegawaian</label>
+                    <select id="kkStatus" class="form-select">
+                        <option value="" disabled selected>Pilih Status...</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="BLU">BLU</option><option value="PKWT">PKWT</option>
+                    </select>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-4"><label class="small">Umur</label><input type="number" id="kkUmur" class="form-control"></div>
+                    <div class="col-8"><label class="small">Jenis Kelamin</label><select id="kkGender" class="form-select"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select></div>
+                </div>
+                <div class="mb-2"><label class="small">TTL</label><input type="text" id="kkTTL" class="form-control" placeholder="Tempat, Tgl Lahir"></div>
+                <div class="mb-2"><label class="small">Jabatan</label><input type="text" id="kkJabatan" class="form-control"></div>
+
+                <hr class="my-3">
+                <h6 class="fw-bold text-danger">Detail Kejadian</h6>
+                <div class="mb-2"><label class="small">Tgl/Waktu Kecelakaan</label><input type="datetime-local" id="kkWaktu" class="form-control" required></div>
+                <div class="mb-2"><label class="small fw-bold mb-1">Jenis Kecelakaan</label>
+                    <div class="card p-2 bg-light border-0">
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Terbentur"><label class="form-check-label small">Terbentur</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Tertimpa"><label class="form-check-label small">Tertimpa</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Terjepit"><label class="form-check-label small">Terjepit</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Jatuh"><label class="form-check-label small">Jatuh</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Suhu"><label class="form-check-label small">Suhu Ekstrem</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Listrik"><label class="form-check-label small">Listrik</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="B3"><label class="form-check-label small">B3</label></div>
+                        <div class="form-check"><input class="form-check-input kk-check" type="checkbox" value="Lainnya"><label class="form-check-label small">Lainnya</label></div>
+                    </div>
+                </div>
+                <div class="mb-2"><label class="small">Saksi</label><input type="text" id="kkSaksi" class="form-control"></div>
+                <div class="mb-2"><label class="small">Tempat Spesifik</label><input type="text" id="kkTempat" class="form-control"></div>
+                <div class="mb-2"><label class="small">Akibat Kecelakaan</label><input type="text" id="kkAkibat" class="form-control" placeholder="Cth: Luka robek di tangan"></div>
+                <div class="mb-2"><label class="small fw-bold">Tindakan Setelah Kejadian</label><textarea id="kkTindakan" class="form-control" rows="2"></textarea></div>
+                <div class="mb-2"><label class="small">Tindakan Oleh</label><input type="text" id="kkTindakanOleh" class="form-control"></div>
+                <div class="mb-2"><label class="small fw-bold">Kronologi Lengkap</label><textarea id="kkKronologi" class="form-control" rows="4" required></textarea></div>
+                <div class="mb-3"><label class="small fw-bold mb-1">Grading Risiko</label>
+                    <select id="kkGrading" class="form-select">
+                        <option value="" disabled selected>Pilih Grading...</option><option value="Biru">🔵 Biru</option><option value="Hijau">🟢 Hijau</option><option value="Kuning">🟡 Kuning</option><option value="Merah">🔴 Merah</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="small fw-bold d-block mb-1">Tanda Tangan Pelapor</label>
+                    <canvas id="sig-canvas" class="sig-pad" height="150"></canvas>
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-1" onclick="clearSig('sig-canvas')">Hapus Tanda Tangan</button>
+                </div>
+                <button type="submit" class="btn-modern bg-dark">KIRIM LAPORAN</button>
+                <button type="button" class="btn btn-link w-100 mt-2 text-muted text-decoration-none" onclick="showPage('page-home')">Batal</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="page-track" class="hidden">
+        <div class="bg-white p-4 rounded-4 shadow-sm">
+            <h5 class="fw-bold mb-3">Lacak Status</h5>
+            <div class="input-group mb-3">
+                <input type="text" id="inpTicket" class="form-control" placeholder="Kode Tiket (INS-...)">
+                <button class="btn btn-dark" onclick="track()"><i class="fas fa-search"></i></button>
+            </div>
+            <div id="trackRes" class="hidden"></div>
+            <button class="btn btn-link w-100 mt-3 text-muted text-decoration-none" onclick="showPage('page-home')">Kembali</button>
+        </div>
+    </div>
+
+    <div id="page-admin" class="hidden">
+        <div class="bg-white p-2 rounded-pill shadow-sm mb-4 d-flex border justify-content-between">
+            <button class="btn btn-sm flex-fill rounded-pill btn-danger" onclick="toggleTab('list')">Dashboard</button>
+            <button class="btn btn-sm flex-fill rounded-pill text-secondary" onclick="toggleTab('qr')">QR Code</button>
+        </div>
+        <div id="tab-list">
+            <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-chart-bar me-2"></i>Rekap Bulan Ini</h6>
+            <div class="row g-2 mb-4">
+                <div class="col-3"><div class="stat-card"><span class="stat-num text-secondary" id="stTotal">0</span><small class="text-muted fw-bold" style="font-size:0.6rem">TOTAL</small></div></div>
+                <div class="col-3"><div class="stat-card wait"><span class="stat-num text-danger" id="stWait">0</span><small class="text-muted fw-bold" style="font-size:0.6rem">TUNGGU</small></div></div>
+                <div class="col-3"><div class="stat-card proc"><span class="stat-num text-warning" id="stProc">0</span><small class="text-muted fw-bold" style="font-size:0.6rem">PROSES</small></div></div>
+                <div class="col-3"><div class="stat-card done"><span class="stat-num text-success" id="stDone">0</span><small class="text-muted fw-bold" style="font-size:0.6rem">SELESAI</small></div></div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-muted m-0">Data Masuk</h6>
+                <div>
+                    <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm me-1" onclick="dlExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+                    <button class="btn btn-sm btn-outline-dark rounded-pill" onclick="loadAdmin()"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <div id="listData" class="vstack gap-3"></div>
+        </div>
+        <div id="tab-qr" class="hidden text-center bg-white p-4 rounded-4 shadow-sm">
+            <h5 class="fw-bold mb-3">Generator QR</h5>
+            <input type="text" id="qrInput" class="form-control mb-3 text-center" placeholder="Nama Ruangan">
+            <button class="btn btn-dark w-100 rounded-pill" onclick="genQR()">Buat QR</button>
+            <div id="printableArea" class="hidden mt-4 border p-3 rounded bg-light">
+                <h6 class="fw-bold text-danger">SCAN DISINI</h6>
+                <h2 class="fw-bold mb-3" id="qrTitle">ROOM</h2>
+                <img id="qrImg" src="" class="img-fluid bg-white p-2 border" style="max-width: 200px;">
+            </div>
+            <button class="btn btn-outline-dark w-100 mt-3" onclick="window.print()">Print</button>
+        </div>
+    </div>
+</div>
+
+<div id="pdf-b3" class="hidden bg-white p-4 text-dark" style="font-family: Arial, sans-serif; font-size: 11px;">
+    <div style="border: 1px solid black; padding: 5px; margin-bottom: 5px;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td width="20%" align="center" style="border-right: 1px solid black;"><img src="https://via.placeholder.com/80x80?text=LOGO" height="60"></td>
+                <td width="80%" align="center">
+                    <h5 class="fw-bold mb-0">INSTALASI KESLING DAN K3RS</h5>
+                    <h6 class="fw-bold mb-0">Formulir Tumpahan B3 dan Limbah B3</h6>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="pdf-table">
+        <tr><td width="150" class="bg-grey">Tanggal</td><td id="pb3_tanggal"></td></tr>
+        <tr><td class="bg-grey">Jam</td><td id="pb3_jam"></td></tr>
+        <tr><td colspan="2" class="fw-bold bg-grey text-center">Telah terjadi tumpahan <span id="pb3_intro_kategori"></span> dengan rincian informasi sebagai berikut :</td></tr>
+        <tr><td class="bg-grey">Jenis Bahan</td><td id="pb3_jenis"></td></tr>
+        <tr><td class="bg-grey">Lokasi Kejadian</td><td id="pb3_lokasi"></td></tr>
+        <tr><td class="bg-grey">Jumlah Estimasi</td><td id="pb3_jumlah"></td></tr>
+        <tr><td class="bg-grey">Apakah Tumpahan Mengenai seseorang</td><td id="pb3_orang"></td></tr>
+        <tr><td class="bg-grey">Penanganan yang telah dilakukan</td><td id="pb3_penanganan"></td></tr>
+        <tr><td class="bg-grey">Keterangan Kondisi Tempat Kejadian setelah dilakukan penanganan</td><td id="pb3_kondisi"></td></tr>
+    </table>
+
+    <table class="pdf-table mt-4" style="border: 1px solid black;">
+        <tr>
+            <td width="100%" align="center" style="padding: 20px; border:none;">
+                <b>Pembuat Laporan</b><br><br>
+                <img id="pb3_ttd_pembuat" src="" style="max-height: 60px; display:block; margin:0 auto;"><br>
+                (<span id="pb3_nama_pembuat"></span>)<br>
+                Tanggal Lapor: <span id="pb3_tgl_lapor"></span>
+            </td>
+        </tr>
+    </table>
+    <div class="mt-2 small fw-bold">Laporkan Tumpahan B3 atau Limbah B3 dalam 2 x 24 jam</div>
+
+    <div class="html2pdf__page-break"></div>
+    <div class="text-center mt-5">
+        <h4 class="fw-bold">LAMPIRAN DOKUMENTASI</h4>
+        <div class="mt-4 border p-2 d-inline-block">
+            <img id="pb3_lampiran_img" src="" style="max-width: 100%; max-height: 600px; display: none;">
+            <p id="pb3_no_img" class="text-muted">Tidak ada foto dilampirkan.</p>
+        </div>
+    </div>
+</div>
+
+<div id="pdf-investigasi" class="hidden bg-white p-4 text-dark" style="font-family: Arial, sans-serif; font-size: 11px;">
+    <div class="header-box" style="padding-top: 0; padding-bottom: 5px;">
+        <table class="header-table">
+            <tr>
+                <td width="15%" align="center" style="border:none;"><img src="https://via.placeholder.com/150x150?text=LOGO+KIRI" height="60"></td>
+                <td width="70%" align="center" style="border:none;">
+                    <h5 class="fw-bold mb-1" style="margin-top: -15px;">TELAAHAN KEJADIAN KECELAKAAN KERJA</h5>
+                    <h5 class="fw-bold mb-1">DI RS. JIWA dr. H. MARZOEKI MAHDI BOGOR</h5>
+                    <p class="mb-0 fw-bold small">Instalasi Kesling & K3 RS</p>
+                </td>
+                <td width="15%" align="center" style="border:none;"><img src="https://via.placeholder.com/150x150?text=LOGO+KANAN" height="60"></td>
+            </tr>
+        </table>
+    </div>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">I</td><td colspan="3" class="fw-bold bg-grey">INFORMASI KECELAKAAN</td></tr>
+        <tr><td></td><td width="150">1. Tempat</td><td colspan="2" id="inv_tempat"></td></tr>
+        <tr><td></td><td>2. Tanggal</td><td colspan="2" id="inv_tanggal"></td></tr>
+        <tr><td></td><td>3. Jam</td><td colspan="2" id="inv_jam"></td></tr>
+        <tr><td></td><td>4. Saksi-saksi</td><td colspan="2" id="inv_saksi"></td></tr>
+    </table>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">II</td><td colspan="3" class="fw-bold bg-grey">DATA KORBAN</td></tr>
+        <tr><td></td><td>1. Jumlah</td><td colspan="2"><span id="inv_jml_l"></span> Laki-laki / <span id="inv_jml_p"></span> Perempuan</td></tr>
+        <tr><td></td><td>2. Nama</td><td colspan="2">a. <span id="inv_nama"></span> (Umur: <span id="inv_umur"></span> Thn)</td></tr>
+        <tr><td></td><td>3. Akibat Kecelakaan</td><td colspan="2" id="inv_akibat"></td></tr>
+        <tr><td></td><td>4. Keterangan Cedera</td><td colspan="2" id="inv_cedera"></td></tr>
+    </table>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">III</td><td colspan="2" class="fw-bold bg-grey">FAKTA YANG DIDAPAT (PENYEBAB LANGSUNG)</td></tr>
+        <tr><td></td><td width="150">1. Kondisi Berbahaya</td><td id="inv_kondisi" style="height: 40px;"></td></tr>
+        <tr><td></td><td>2. Tindakan Berbahaya</td><td id="inv_tindakan" style="height: 40px;"></td></tr>
+    </table>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">IV</td><td class="fw-bold bg-grey">URAIAN TERJADINYA KECELAKAAN</td></tr>
+        <tr><td></td><td id="inv_uraian" style="height: 60px;"></td></tr>
+    </table>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">V</td><td class="fw-bold bg-grey">SUMBER KECELAKAAN (PENYEBAB MENDASAR)</td></tr>
+        <tr><td></td><td id="inv_sumber" style="height: 40px;"></td></tr>
+    </table>
+    <table class="pdf-table">
+        <tr><td width="30" class="text-center fw-bold">VI</td><td class="fw-bold bg-grey">TYPE KECELAKAAN</td></tr>
+        <tr><td></td><td id="inv_type" style="height: 30px;"></td></tr>
+    </table>
+    <table class="pdf-table" style="border: 1px solid black; margin-top: 10px;">
+        <tr><td colspan="2" style="border:none;">Tanggal Pembuatan Laporan: <span id="inv_tgl_buat"></span></td></tr>
+        <tr>
+            <td width="50%" class="text-center" style="border:none; padding-top: 20px;">
+                Mengetahui,<br>Kepala Instalasi Kesling & K3RS<br><br>
+                <img id="pdf_ttd_ka" src="" style="max-height: 70px; display:block; margin: 0 auto;">
+                <br>( <span id="pdf_nama_ka"></span> )
+            </td>
+            <td width="50%" class="text-center" style="border:none; padding-top: 20px;">
+                Yang membuat laporan,<br><br>
+                <img id="pdf_ttd_petugas" src="" style="max-height: 70px; display:block; margin: 0 auto;">
+                <br>( <span id="inv_pembuat" class="fw-bold"></span> )
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div id="pdf-laporan" class="hidden bg-white p-5 text-dark" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5;">
+    <div class="text-center mb-4">
+        <h5 class="fw-bold mb-1">LAPORAN PAK / KECELAKAAN KERJA PETUGAS</h5>
+        <h5 class="fw-bold">RSJ dr. H. MARZOEKI MAHDI BOGOR</h5>
+    </div>
+    <div class="fw-bold mb-2 text-decoration-underline">I. DATA PEGAWAI</div>
+    <div class="ps-3 mb-4">
+        <div class="pdf-row"><div class="pdf-label">Nama</div><div class="pdf-val">: <span id="lap_nama"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Unit Kerja/Ruangan</div><div class="pdf-val">: <span id="lap_ruangan"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">NIP</div><div class="pdf-val">: <span id="lap_nip"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Tempat, Tanggal Lahir</div><div class="pdf-val">: <span id="lap_ttl"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Jenis Kelamin</div><div class="pdf-val">: <span id="lap_gender"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Jabatan</div><div class="pdf-val">: <span id="lap_jabatan"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Status Kepegawaian</div><div class="pdf-val">: <span id="lap_status"></span></div></div>
+    </div>
+    <div class="fw-bold mb-2 text-decoration-underline">II. RINCIAN KEJADIAN</div>
+    <div class="ps-3 mb-4">
+        <div class="pdf-row"><div class="pdf-label">Tanggal dan Waktu</div><div class="pdf-val">: <span id="lap_waktu"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Lokasi Kejadian</div><div class="pdf-val">: <span id="lap_lokasi"></span></div></div>
+        <div class="pdf-row mb-1"><div class="pdf-label">Kronologis Kejadian</div><div class="pdf-val">:</div></div>
+        <div class="ps-3 mb-3" id="lap_kronologi" style="white-space: pre-wrap; font-style: italic;"></div>
+        <div class="pdf-row"><div class="pdf-label">Jenis Kecelakaan Kerja</div><div class="pdf-val">: <span id="lap_jenis_detail"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Orang Pertama Melihat</div><div class="pdf-val">: <span id="lap_saksi"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Tempat Spesifik</div><div class="pdf-val">: <span id="lap_tempat_detail"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Akibat Kecelakaan</div><div class="pdf-val">: <span id="lap_akibat"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Tindakan Dilakukan</div><div class="pdf-val">: <span id="lap_tindakan"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">Tindakan Oleh</div><div class="pdf-val">: <span id="lap_tindakan_oleh"></span></div></div>
+    </div>
+    <div class="fw-bold mb-2 text-decoration-underline">III. IDENTITAS PELAPOR</div>
+    <div class="ps-3 mb-4">
+        <div class="pdf-row"><div class="pdf-label">Nama Pelapor</div><div class="pdf-val">: <span id="lap_identitas_nama"></span></div></div>
+        <div class="pdf-row"><div class="pdf-label">No. WhatsApp</div><div class="pdf-val">: <span id="lap_identitas_wa"></span></div></div>
+    </div>
+    <div class="mt-5">
+        <div class="row">
+            <div class="col-6">
+                <div class="mb-2 fw-bold">Grading Risiko Kejadian:</div>
+                <div id="lap_grading_box" class="fw-bold border border-dark p-2 text-center" style="width: 150px;">-</div>
+            </div>
+            <div class="col-6 text-center">
+                <div class="mb-1" id="lap_tgl_bogor"></div>
+                <div class="mb-5">Pelapor,</div>
+                <img id="lap_ttd_img" src="" style="max-height: 60px; display: block; margin: 0 auto;">
+                <div class="mt-2 fw-bold">( <span id="lap_nama_pelapor"></span> )</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modNewReportAdmin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 p-4 text-center">
+            <div class="mb-2 text-danger animate__animated animate__tada">
+                <i class="fas fa-bell fa-4x"></i>
+            </div>
+            <h4 class="fw-bold mb-1">Laporan Baru!</h4>
+            <p class="text-muted small">Ada insiden baru yang masuk.</p>
+            <button class="btn btn-modern w-100" data-bs-dismiss="modal" onclick="loadAdmin()">Cek Sekarang</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modLogin" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 p-4">
+            <div class="text-center mb-3">
+                <div class="bg-danger text-white rounded-circle d-inline-flex p-3 mb-2"><i class="fas fa-user-shield fa-2x"></i></div>
+                <h5 class="fw-bold">Login Admin</h5>
+            </div>
+            <input type="text" id="logUser" class="form-control mb-3" placeholder="Username">
+            <input type="password" id="logPass" class="form-control mb-3" placeholder="Password">
+            <button class="btn-modern w-100" onclick="processLogin()">Masuk</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modUp" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header border-0"><h5 class="modal-title fw-bold">Tindak Lanjut & Investigasi</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="hidden" id="upId">
+                <div class="mb-3">
+                    <label class="fw-bold small">Status Laporan</label>
+                    <select id="upSt" class="form-select" onchange="toggleInvestigasi()">
+                        <option value="Menunggu">🔴 Menunggu</option><option value="Diproses">🟡 Diproses</option><option value="Selesai">🟢 Selesai (Wajib Isi Form)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3"><label class="fw-bold small">Catatan Admin</label><textarea id="upNote" class="form-control" rows="2" placeholder="Catatan..."></textarea></div>
+
+                <div id="formInvestigasi" class="hidden border-top pt-3 mt-3 bg-light p-3 rounded">
+                    <h6 class="fw-bold text-danger mb-3">FORMULIR TELAAHAN KEJADIAN</h6>
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><label class="small">Kondisi Berbahaya</label><input type="text" id="in_kondisi" class="form-control"></div>
+                        <div class="col-6"><label class="small">Tindakan Berbahaya</label><input type="text" id="in_tindakan" class="form-control"></div>
+                    </div>
+                    <div class="mb-2"><label class="small">Uraian Terjadinya Kecelakaan</label><textarea id="in_uraian" class="form-control" rows="2"></textarea></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><label class="small">Sumber Kecelakaan</label><input type="text" id="in_sumber" class="form-control"></div>
+                        <div class="col-6"><label class="small">Type Kecelakaan</label><input type="text" id="in_type" class="form-control"></div>
+                    </div>
+                    <div class="mb-2"><label class="small">Keterangan Cedera</label><input type="text" id="in_cedera" class="form-control"></div>
+                    <div class="mb-2"><label class="small">Nama Petugas K3 (Pembuat)</label><input type="text" id="in_petugas" class="form-control"></div>
+                    <div class="mb-2"><label class="small text-primary fw-bold">Nama Kepala Instalasi (Untuk TTD PDF)</label><input type="text" id="in_nama_ka" class="form-control"></div>
+                    
+                    <hr>
+                    <div class="row">
+                        <div class="col-6 text-center">
+                            <label class="small fw-bold mb-1">TTD Petugas K3</label>
+                            <canvas id="sig-admin-1" class="sig-pad" height="100"></canvas>
+                            <button class="btn btn-sm btn-outline-secondary w-100" onclick="clearSig('sig-admin-1')">Hapus</button>
+                        </div>
+                        <div class="col-6 text-center">
+                            <label class="small fw-bold mb-1">TTD Kepala Instalasi</label>
+                            <canvas id="sig-admin-2" class="sig-pad" height="100"></canvas>
+                            <button class="btn btn-sm btn-outline-secondary w-100" onclick="clearSig('sig-admin-2')">Hapus</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer border-0 pt-0"><button class="btn-modern" onclick="saveUp()">Simpan & Update</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modSuccess" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 text-center p-4">
+            <h4 class="fw-bold mb-2 text-success">Laporan Terkirim!</h4>
+            <div class="bg-light p-3 rounded-3 border mb-3 position-relative" id="ticketBox">
+                <small class="d-block mb-1">Tiket Anda</small>
+                <h2 class="fw-bold text-dark mb-0" id="ticketDisplay">...</h2>
+                <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyTicket()"><i class="fas fa-copy"></i></button>
+            </div>
+            <p id="msgB3" class="hidden text-muted">Terima kasih sudah melakukan pelaporan.</p>
+            <button class="btn btn-outline-secondary w-100" data-bs-dismiss="modal" onclick="showPage('page-home')">Tutup</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // --- GANTI URL INI ---
+    const API = "https://script.google.com/macros/s/AKfycbyimfXBor2cf9omlSWMu-sFGOXo4gOeBEtJc5HGajVXCPNS6j1qbIKPFIqpNzP9kMUW/exec"; 
+    // ---------------------
+
+    let dataCache = []; let lastID = ""; let loop; let isAdmin = false;
+    let pads = {}; 
+    let currentTicket = ""; 
+
+    window.onload = () => {
+        let p = new URLSearchParams(location.search);
+        let r = p.get('ruangan') || "UMUM (LOBBY)";
+        document.getElementById('displayRoom').innerText = r;
+        document.getElementById('inpRoom').value = r;
+        document.getElementById('kkRoom').value = r; 
+        document.getElementById('b3Lokasi').value = r;
+        
+        if(p.has('ruangan')) document.getElementById('adminLoginArea').style.display = 'none';
+        
+        initPad('sig-canvas'); initPad('sig-b3'); initPad('sig-admin-1'); initPad('sig-admin-2');
+        showPage('page-home');
+        document.addEventListener('click', e => { if(!document.getElementById('bellWrapper').contains(e.target)) document.getElementById('notifMenu').style.display = 'none'; });
+    };
+
+    function showPage(id) {
+        document.querySelectorAll('.container > div').forEach(d => { if(d.id.startsWith('page-')) d.classList.add('hidden'); });
+        document.getElementById(id).classList.remove('hidden');
+        window.scrollTo(0,0);
+        if(id === 'page-admin') {
+            isAdmin = true; document.getElementById('bellWrapper').classList.remove('hidden');
+            loadAdmin(); loop = setInterval(loadAdmin, 10000); 
+        } else {
+            isAdmin = false; document.getElementById('bellWrapper').classList.add('hidden');
+            clearInterval(loop);
+        }
+    }
+
+    function openForm(type) { document.getElementById('inpJenis').value = type; showPage('page-form'); }
+    function openFormB3() { showPage('page-form-b3'); resizeCanvas('sig-b3'); }
+    function openFormKK() { showPage('page-form-kk'); resizeCanvas('sig-canvas'); }
+
+    function initPad(id) {
+        let canvas = document.getElementById(id); let ctx = canvas.getContext('2d');
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 2; let isDrawing = false;
+        let start = (e) => { isDrawing = true; ctx.beginPath(); ctx.moveTo(getX(e, canvas), getY(e, canvas)); };
+        let end = () => { isDrawing = false; };
+        let move = (e) => { if(!isDrawing) return; ctx.lineTo(getX(e, canvas), getY(e, canvas)); ctx.stroke(); };
+        canvas.addEventListener('mousedown', start); canvas.addEventListener('mouseup', end); canvas.addEventListener('mousemove', move);
+        canvas.addEventListener('touchstart', (e)=>{e.preventDefault(); start(e.touches[0])}); 
+        canvas.addEventListener('touchend', (e)=>{e.preventDefault(); end()});
+        canvas.addEventListener('touchmove', (e)=>{e.preventDefault(); move(e.touches[0])});
+        pads[id] = canvas;
+    }
+    
+    function getX(e, c) { return e.clientX - c.getBoundingClientRect().left; }
+    function getY(e, c) { return e.clientY - c.getBoundingClientRect().top; }
+    function clearSig(id) { let c = document.getElementById(id); c.getContext('2d').clearRect(0,0,c.width,c.height); }
+    function resizeCanvas(id) { let c = document.getElementById(id); c.width = c.offsetWidth; c.height = 150; }
+
+    document.getElementById('formLapor').onsubmit = e => {
+        e.preventDefault();
+        submitData({
+            action: 'input', jenis: document.getElementById('inpJenis').value, ruangan: document.getElementById('inpRoom').value,
+            pelapor: document.getElementById('inpPelapor').value, deskripsi: document.getElementById('inpDesc').value
+        });
+    };
+
+    document.getElementById('formKK').onsubmit = e => {
+        e.preventDefault();
+        let ceklis = []; document.querySelectorAll('.kk-check:checked').forEach(c => ceklis.push(c.value));
+        let data = {
+            action: 'input', jenis: 'Kecelakaan Kerja', ruangan: document.getElementById('kkRoom').value,
+            pelapor: document.getElementById('kkPelapor').value, deskripsi: document.getElementById('kkKronologi').value, 
+            nama_pegawai: document.getElementById('kkNama').value, ruangan_korban: document.getElementById('kkRuanganKorban').value, 
+            wa: document.getElementById('kkWA').value, nip: document.getElementById('kkNIP').value, status_pegawai: document.getElementById('kkStatus').value,
+            umur: document.getElementById('kkUmur').value, ttl: document.getElementById('kkTTL').value, gender: document.getElementById('kkGender').value,
+            jabatan: document.getElementById('kkJabatan').value, waktu_kejadian: document.getElementById('kkWaktu').value,
+            jenis_detail: ceklis.join(", "), saksi: document.getElementById('kkSaksi').value, tempat_detail: document.getElementById('kkTempat').value,
+            akibat: document.getElementById('kkAkibat').value, tindakan: document.getElementById('kkTindakan').value, 
+            tindakan_oleh: document.getElementById('kkTindakanOleh').value, grading: document.getElementById('kkGrading').value, 
+            ttd: pads['sig-canvas'].toDataURL() 
+        };
+        submitData(data);
+    };
+
+    // FORM B3 SUBMIT (COMPRESS PHOTO)
+    document.getElementById('formB3').onsubmit = e => {
+        e.preventDefault();
+        let fileInput = document.getElementById('b3Foto');
+        
+        let collectData = (base64) => {
+            let cat = document.getElementById('b3Kategori').value;
+            let desc = `Kategori: ${cat}, Jenis: ${document.getElementById('b3JenisBahan').value}, Jumlah: ${document.getElementById('b3Jumlah').value}, Mengenai Orang: ${document.getElementById('b3MengenaiOrang').value}, Penanganan: ${document.getElementById('b3Penanganan').value}, Kondisi: ${document.getElementById('b3Kondisi').value}`;
+            
+            let data = {
+                action: 'input', jenis: 'Tumpahan B3', ruangan: document.getElementById('b3Lokasi').value,
+                pelapor: document.getElementById('b3Pembuat').value, deskripsi: desc, 
+                waktu_kejadian: document.getElementById('b3Waktu').value, ttd: pads['sig-b3'].toDataURL(),
+                doc_b3: base64
+            };
+            submitData(data);
+        };
+
+        if(fileInput.files.length > 0) {
+            let reader = new FileReader();
+            reader.onload = function(readerEvent) {
+                let image = new Image();
+                image.onload = function() {
+                    let canvas = document.createElement('canvas');
+                    let max_size = 400; // Resize agar muat di Google Sheet
+                    let w = image.width; let h = image.height;
+                    if (w > h) { if (w > max_size) { h *= max_size / w; w = max_size; } } else { if (h > max_size) { w *= max_size / h; h = max_size; } }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(image, 0, 0, w, h);
+                    let dataUrl = canvas.toDataURL('image/jpeg', 0.4); // Kompresi 40%
+                    collectData(dataUrl);
+                }
+                image.src = readerEvent.target.result;
+            }
+            reader.readAsDataURL(fileInput.files[0]);
+        } else {
+            collectData("");
+        }
+    };
+
+    function submitData(dataObj) {
+        loader(true);
+        let fd = new FormData(); for(let key in dataObj) fd.append(key, dataObj[key]);
+        fetch(API, {method:'POST', body:fd}).then(r=>r.json()).then(d=>{
+            loader(false);
+            if(d.result==='success') { 
+                currentTicket = d.ticket;
+                
+                // POPUP LOGIC B3 vs NORMAL
+                if(dataObj.jenis === 'Tumpahan B3') {
+                    document.getElementById('ticketBox').classList.add('hidden');
+                    document.getElementById('msgB3').classList.remove('hidden');
+                } else {
+                    document.getElementById('ticketBox').classList.remove('hidden');
+                    document.getElementById('msgB3').classList.add('hidden');
+                    document.getElementById('ticketDisplay').innerText = d.ticket;
+                }
+
+                new bootstrap.Modal(document.getElementById('modSuccess')).show();
+                document.getElementById('formLapor').reset(); document.getElementById('formKK').reset(); document.getElementById('formB3').reset();
+                clearSig('sig-canvas'); clearSig('sig-b3');
+            } else alert("Gagal: " + d.error);
+        }).catch(err=>{ loader(false); alert("Error koneksi"); });
+    }
+    
+    function copyTicket() { navigator.clipboard.writeText(document.getElementById('ticketDisplay').innerText).then(() => alert("Tiket disalin!")); }
+
+    function track() {
+        let id = document.getElementById('inpTicket').value.trim(); if(!id) return;
+        loader(true);
+        fetch(API+"?action=read&t="+Date.now()).then(r=>r.json()).then(d=>{
+            loader(false);
+            let t = d.find(x => String(x.ID_Tiket).trim() == id);
+            let box = document.getElementById('trackRes');
+            box.classList.remove('hidden');
+            if(t) {
+                let badge = t.Status=='Selesai'?'bg-success':(t.Status=='Diproses'?'bg-warning':'bg-danger');
+                
+                let btnReview = "";
+                let btnB3 = "";
+
+                if(t.Status === 'Selesai' && t.Jenis_Insiden === 'Kecelakaan Kerja') {
+                    let dataString = encodeURIComponent(JSON.stringify(t));
+                    btnReview = `<button class="btn btn-sm btn-success w-100 mt-2" onclick="printInvestigasiPDF('${dataString}')"><i class="fas fa-file-contract me-1"></i> Review Hasil Investigasi (PDF)</button>`;
+                }
+                
+                if(t.Jenis_Insiden === 'Tumpahan B3') {
+                    let dataString = encodeURIComponent(JSON.stringify(t));
+                    btnB3 = `<button class="btn btn-sm btn-warning w-100 mt-2" onclick="printB3PDF('${dataString}')"><i class="fas fa-file-pdf me-1"></i> Cetak Laporan B3</button>`;
+                }
+
+                box.innerHTML = `
+                    <div class="card mt-3 border shadow-sm p-3">
+                        <h6 class="fw-bold">${t.Jenis_Insiden}<span class="badge ${badge} float-end">${t.Status}</span></h6>
+                        <small class="text-muted">${t.Ruangan}</small>
+                        <div class="alert alert-light mt-2 mb-0 small border"><strong>Admin:</strong> ${t.Tindak_Lanjut||"-"}</div>
+                        ${btnReview} ${btnB3}
+                    </div>`;
+            } else box.innerHTML = `<div class="text-danger mt-2 text-center">Tidak ditemukan</div>`;
+        });
+    }
+
+    function showLoginModal() { new bootstrap.Modal(document.getElementById('modLogin')).show(); }
+    function processLogin() {
+        let u = document.getElementById('logUser').value; let p = document.getElementById('logPass').value;
+        if(!u || !p) return alert("Isi data!");
+        loader(true); let fd = new FormData(); fd.append('action', 'login'); fd.append('u', u); fd.append('p', p);
+        fetch(API, { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+            loader(false);
+            if(d.result === 'success') {
+                bootstrap.Modal.getInstance(document.getElementById('modLogin')).hide();
+                document.getElementById('logUser').value = ""; document.getElementById('logPass').value = "";
+                showPage('page-admin');
+            } else alert("Login Gagal: " + (d.message||"Error"));
+        }).catch(err => { loader(false); alert("Error: " + err); });
+    }
+
+    function loadAdmin() {
+        if(!isAdmin) return;
+        fetch(API+"?action=read&t="+Date.now()).then(r=>r.json()).then(d=>{
+            dataCache = d; let list = document.getElementById('listData'); list.innerHTML = ""; calcStats(d);
+            
+            if(d.length > 0) {
+                let latest = d[d.length - 1];
+                let newID = String(latest.ID_Tiket).trim();
+                if (lastID !== "" && newID !== lastID) {
+                    new bootstrap.Modal(document.getElementById('modNewReportAdmin')).show();
+                }
+                lastID = newID; 
+                if(newID !== localStorage.getItem('lastRead')) notifState(true, newID);
+            }
+
+            if(d.length==0) list.innerHTML = "<div class='text-center py-5 text-muted'>Kosong</div>";
+            
+            [...d].reverse().forEach(x => {
+                let b = x.Status=='Selesai'?'#2ed573':(x.Status=='Diproses'?'#ffa502':'#ff4757');
+                let icon = x.Jenis_Insiden == 'Kecelakaan Kerja' ? '<i class="fas fa-hard-hat text-dark me-1"></i>' : (x.Jenis_Insiden == 'Tumpahan B3' ? '<i class="fas fa-flask text-warning me-1"></i>' : '');
+                
+                let btnsPDF = "";
+                if(x.Jenis_Insiden == 'Kecelakaan Kerja') {
+                    let dataStr = encodeURIComponent(JSON.stringify(x));
+                    btnsPDF = `<div class="d-flex gap-1 mt-2"><button class="btn btn-sm btn-secondary flex-fill" onclick="printLaporanPDF('${dataStr}')"><i class="fas fa-file-alt"></i> Laporan</button><button class="btn btn-sm btn-danger flex-fill" onclick="printInvestigasiPDF('${dataStr}')"><i class="fas fa-file-contract"></i> Telaahan</button></div>`;
+                } else if(x.Jenis_Insiden == 'Tumpahan B3') {
+                    let dataStr = encodeURIComponent(JSON.stringify(x));
+                    btnsPDF = `<button class="btn btn-sm btn-warning w-100 mt-2" onclick="printB3PDF('${dataStr}')"><i class="fas fa-file-pdf"></i> PDF B3</button>`;
+                }
+
+                list.innerHTML += `<div class="card shadow-sm p-3 border-start border-5 rounded-4 mb-3 admin-card-body" style="border-color:${b}!important">
+                    <div class="d-flex justify-content-between mb-1"><span class="badge bg-dark">#${x.ID_Tiket}</span><span class="badge text-dark border bg-white">${x.Status}</span></div>
+                    <h6 class="fw-bold mb-2 text-danger">${icon}${x.Jenis_Insiden}</h6>
+                    <table class="admin-detail-table">
+                        <tr><td class="label">Lokasi</td><td class="colon">:</td><td class="value">${x.Ruangan}</td></tr>
+                        <tr><td class="label">Pelapor</td><td class="colon">:</td><td class="value">${x.Pelapor}</td></tr>
+                        ${x.Nama_Pegawai ? `<tr><td class="label">Korban</td><td class="colon">:</td><td class="value">${x.Nama_Pegawai}</td></tr>` : ''}
+                        ${x.NIP ? `<tr><td class="label">NIP</td><td class="colon">:</td><td class="value">${x.NIP}</td></tr>` : ''}
+                        ${x.Status_Pegawai ? `<tr><td class="label">Status</td><td class="colon">:</td><td class="value">${x.Status_Pegawai}</td></tr>` : ''}
+                    </table>
+                    <div class="bg-light p-2 rounded small text-secondary border mb-2 desc-box">" ${x.Deskripsi} "</div>
+                    <div class="text-end mb-2"><small class="fw-bold text-success">TL: ${x.Tindak_Lanjut||"-"}</small></div>
+                    <button class="btn btn-sm btn-outline-dark rounded-pill w-100" onclick="upModal('${x.ID_Tiket}', '${x.Jenis_Insiden}')">Update Status</button>
+                    ${btnsPDF}
+                </div>`;
+            });
+        });
+    }
+
+    function upModal(id, jenis) { 
+        document.getElementById('upId').value = id; 
+        document.getElementById('upJenis').value = jenis; 
+        new bootstrap.Modal(document.getElementById('modUp')).show(); 
+    }
+
+    function toggleInvestigasi() {
+        let st = document.getElementById('upSt').value;
+        let jenis = document.getElementById('upJenis').value;
+        let form = document.getElementById('formInvestigasi');
+        
+        // HANYA MUNCUL JIKA SELESAI DAN JENISNYA BUKAN B3
+        if (st === 'Selesai' && jenis !== 'Tumpahan B3') {
+            form.classList.remove('hidden');
+            setTimeout(() => { resizeCanvas('sig-admin-1'); resizeCanvas('sig-admin-2'); }, 200);
+        } else {
+            form.classList.add('hidden');
+        }
+    }
+
+    function saveUp() {
+        let status = document.getElementById('upSt').value;
+        let jenis = document.getElementById('upJenis').value;
+
+        // VALIDASI HANYA JIKA BUKAN B3
+        if(status === 'Selesai' && jenis !== 'Tumpahan B3') {
+            if(!document.getElementById('in_kondisi').value) return alert("Isi form investigasi!");
+        }
+        
+        loader(true);
+        let fd = new FormData();
+        fd.append('action', 'update'); fd.append('id_tiket', document.getElementById('upId').value);
+        fd.append('status', status); fd.append('note', document.getElementById('upNote').value);
+        
+        fd.append('inv_kondisi', document.getElementById('in_kondisi').value);
+        fd.append('inv_tindakan', document.getElementById('in_tindakan').value);
+        fd.append('inv_uraian', document.getElementById('in_uraian').value);
+        fd.append('inv_sumber', document.getElementById('in_sumber').value);
+        fd.append('inv_type', document.getElementById('in_type').value);
+        fd.append('inv_cedera', document.getElementById('in_cedera').value);
+        fd.append('inv_petugas', document.getElementById('in_petugas').value);
+        fd.append('inv_ttd_petugas', pads['sig-admin-1'].toDataURL());
+        fd.append('inv_ttd_ka', pads['sig-admin-2'].toDataURL());
+        fd.append('inv_nama_ka', document.getElementById('in_nama_ka').value); 
+
+        fetch(API, {method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+            loader(false); alert("Update Berhasil");
+            bootstrap.Modal.getInstance(document.getElementById('modUp')).hide();
+            loadAdmin();
+        });
+    }
+
+    // PDF 1: TELAAHAN KEJADIAN (INVESTIGASI)
+    function printInvestigasiPDF(dataString) {
+        let d = JSON.parse(decodeURIComponent(dataString));
+        
+        document.getElementById('inv_tempat').innerText = d.Tempat_Detail || "-";
+        document.getElementById('inv_tanggal').innerText = d.Waktu_Kejadian ? new Date(d.Waktu_Kejadian).toLocaleDateString() : "-";
+        document.getElementById('inv_jam').innerText = d.Waktu_Kejadian ? new Date(d.Waktu_Kejadian).toLocaleTimeString() : "-";
+        document.getElementById('inv_saksi').innerText = d.Saksi || "-";
+        document.getElementById('inv_jml_l').innerText = (d.Gender == 'L') ? "1" : "0";
+        document.getElementById('inv_jml_p').innerText = (d.Gender == 'P') ? "1" : "0";
+        document.getElementById('inv_nama').innerText = d.Nama_Pegawai || "-";
+        document.getElementById('inv_umur').innerText = d.Umur || "-";
+        document.getElementById('inv_akibat').innerText = d.Akibat || "-";
+        document.getElementById('inv_cedera').innerText = d.Inv_Cedera || "-";
+        document.getElementById('inv_kondisi').innerText = d.Inv_Kondisi || "";
+        document.getElementById('inv_tindakan').innerText = d.Inv_Tindakan || "";
+        document.getElementById('inv_uraian').innerText = d.Inv_Uraian || "";
+        document.getElementById('inv_sumber').innerText = d.Inv_Sumber || "";
+        document.getElementById('inv_type').innerText = d.Inv_Type || "";
+        document.getElementById('inv_tgl_buat').innerText = new Date().toLocaleDateString('id-ID');
+        document.getElementById('inv_pembuat').innerText = d.Inv_Petugas || "Petugas K3";
+        document.getElementById('pdf_nama_ka').innerText = d.Inv_Nama_Ka || "................";
+
+        let ttdPetugas = document.getElementById('pdf_ttd_petugas');
+        let ttdKa = document.getElementById('pdf_ttd_ka');
+        if(d.Inv_TTD_Petugas && d.Inv_TTD_Petugas.startsWith('data:image')) { ttdPetugas.src = d.Inv_TTD_Petugas; ttdPetugas.style.display='block'; } else ttdPetugas.style.display='none';
+        if(d.Inv_TTD_KaInstalasi && d.Inv_TTD_KaInstalasi.startsWith('data:image')) { ttdKa.src = d.Inv_TTD_KaInstalasi; ttdKa.style.display='block'; } else ttdKa.style.display='none';
+
+        genFinalPDF('pdf-investigasi', 'Laporan_Investigasi_'+d.ID_Tiket);
+    }
+
+    // PDF 2: LAPORAN PELAPOR (FORMAT FORMULIR A4)
+    function printLaporanPDF(dataString) {
+        let d = JSON.parse(decodeURIComponent(dataString));
+        
+        document.getElementById('lap_nama').innerText = d.Nama_Pegawai || "-";
+        document.getElementById('lap_ruangan').innerText = d.Ruangan_Korban || "-";
+        document.getElementById('lap_nip').innerText = d.NIP || "-";
+        document.getElementById('lap_ttl').innerText = d.TTL || "-";
+        document.getElementById('lap_gender').innerText = (d.Gender == 'L') ? "Laki-laki" : "Perempuan";
+        document.getElementById('lap_jabatan').innerText = d.Jabatan || "-";
+        document.getElementById('lap_status').innerText = d.Status_Pegawai || "-";
+        
+        document.getElementById('lap_waktu').innerText = d.Waktu_Kejadian ? new Date(d.Waktu_Kejadian).toLocaleString() : "-";
+        document.getElementById('lap_lokasi').innerText = d.Ruangan || "-";
+        document.getElementById('lap_kronologi').innerText = d.Deskripsi || "-";
+        document.getElementById('lap_jenis_detail').innerText = d.Jenis_Kecelakaan_Detail || "-";
+        document.getElementById('lap_saksi').innerText = d.Saksi || "-";
+        document.getElementById('lap_tempat_detail').innerText = d.Tempat_Detail || "-";
+        document.getElementById('lap_akibat').innerText = d.Akibat || "-";
+        document.getElementById('lap_tindakan').innerText = d.Tindakan_Awal || "-";
+        document.getElementById('lap_tindakan_oleh').innerText = d.Tindakan_Oleh || "-";
+        
+        document.getElementById('lap_grading_box').innerText = d.Grading || "-";
+        document.getElementById('lap_nama_pelapor').innerText = d.Pelapor;
+        
+        document.getElementById('lap_identitas_nama').innerText = d.Pelapor || "-";
+        document.getElementById('lap_identitas_wa').innerText = d.No_WA || "-";
+
+        let tglLapor = new Date(d.Waktu);
+        let months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        let bogorDate = "Bogor, " + tglLapor.getDate() + " " + months[tglLapor.getMonth()] + " " + tglLapor.getFullYear();
+        document.getElementById('lap_tgl_bogor').innerText = bogorDate;
+
+        let img = document.getElementById('lap_ttd_img');
+        if(d.Tanda_Tangan && d.Tanda_Tangan.startsWith('data:image')) { img.src = d.Tanda_Tangan; img.style.display='block'; } else img.style.display='none';
+        
+        genFinalPDF('pdf-laporan', 'Laporan_Pelapor_'+d.ID_Tiket);
+    }
+
+    function printB3PDF(dataString) {
+        let d = JSON.parse(decodeURIComponent(dataString));
+        let desc = d.Deskripsi; 
+        let cat = desc.match(/Kategori: (.*?),/)?.[1] || "";
+        let jenis = desc.match(/Jenis: (.*?),/)?.[1] || "-";
+        let jumlah = desc.match(/Jumlah: (.*?),/)?.[1] || "-";
+        let orang = desc.match(/Mengenai Orang: (.*?),/)?.[1] || "-";
+        let penanganan = desc.match(/Penanganan: (.*?),/)?.[1] || "-";
+        let kondisi = desc.match(/Kondisi: (.*)/)?.[1] || "-";
+
+        document.getElementById('pb3_tanggal').innerText = d.Waktu_Kejadian ? new Date(d.Waktu_Kejadian).toLocaleDateString() : "-";
+        document.getElementById('pb3_jam').innerText = d.Waktu_Kejadian ? new Date(d.Waktu_Kejadian).toLocaleTimeString() : "-";
+        
+        document.getElementById('pb3_intro_kategori').innerText = cat; 
+        document.getElementById('pb3_jenis').innerText = jenis;
+        document.getElementById('pb3_lokasi').innerText = d.Ruangan || "-";
+        document.getElementById('pb3_jumlah').innerText = jumlah;
+        document.getElementById('pb3_orang').innerText = orang;
+        document.getElementById('pb3_penanganan').innerText = penanganan;
+        document.getElementById('pb3_kondisi').innerText = kondisi;
+        
+        document.getElementById('pb3_nama_pembuat').innerText = d.Pelapor;
+        document.getElementById('pb3_tgl_lapor').innerText = new Date(d.Waktu).toLocaleDateString();
+        
+        let img = document.getElementById('pb3_ttd_pembuat');
+        if(d.Tanda_Tangan) { img.src = d.Tanda_Tangan; img.style.display='block'; } else img.style.display='none';
+
+        // LAMPIRAN FOTO
+        let lampiranImg = document.getElementById('pb3_lampiran_img');
+        let noImg = document.getElementById('pb3_no_img');
+        if(d.Dokumentasi_B3 && d.Dokumentasi_B3.startsWith('data:image')) {
+            lampiranImg.src = d.Dokumentasi_B3;
+            lampiranImg.style.display = 'block';
+            noImg.style.display = 'none';
+        } else {
+            lampiranImg.style.display = 'none';
+            noImg.style.display = 'block';
+        }
+
+        genFinalPDF('pdf-b3', 'Laporan_B3_'+d.ID_Tiket);
+    }
+
+    function genFinalPDF(elemId, filename) {
+        let elem = document.getElementById(elemId);
+        elem.classList.remove('hidden'); 
+        let opt = { margin: 10, filename: filename+'.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+        html2pdf().set(opt).from(elem).save().then(() => { elem.classList.add('hidden'); });
+    }
+
+    function calcStats(d) {
+        let now = new Date(), m = now.getMonth(), y = now.getFullYear();
+        let tot=0, w=0, p=0, fin=0;
+        d.forEach(x => {
+            let dt = new Date(x.Waktu);
+            if(dt.getMonth()==m && dt.getFullYear()==y) {
+                tot++; if(x.Status=='Menunggu') w++; else if(x.Status=='Diproses') p++; else if(x.Status=='Selesai') fin++;
+            }
+        });
+        document.getElementById('stTotal').innerText=tot; document.getElementById('stWait').innerText=w;
+        document.getElementById('stProc').innerText=p; document.getElementById('stDone').innerText=fin;
+    }
+    function notifState(active, id="") {
+        let ico = document.getElementById('bellIcon'); let dot = document.getElementById('bellDot');
+        let txt = document.getElementById('notifText'); let btn = document.getElementById('btnRead');
+        if(active) { ico.classList.add('bell-ring', 'text-white'); ico.classList.remove('text-white-50'); dot.style.display='block'; txt.innerHTML = `<span class="text-danger fw-bold">BARU!</span> ID: ${id}`; btn.classList.remove('hidden'); } 
+        else { ico.classList.remove('bell-ring', 'text-white'); ico.classList.add('text-white-50'); dot.style.display='none'; txt.innerText = "Tidak ada baru."; btn.classList.add('hidden'); }
+    }
+    function toggleMenu() { let m=document.getElementById('notifMenu'); m.style.display = m.style.display=='block'?'none':'block'; }
+    function markRead() { localStorage.setItem('lastRead', lastID); notifState(false); toggleMenu(); }
+    function loader(show) { document.getElementById('loadingOverlay').style.display = show?'flex':'none'; }
+    function upModal(id) { document.getElementById('upId').value=id; new bootstrap.Modal(document.getElementById('modUp')).show(); }
+    
+    function genQR() {
+        let r = document.getElementById('qrInput').value; if(!r)return;
+        let u = location.href.split('?')[0]+"?ruangan="+encodeURIComponent(r);
+        document.getElementById('qrImg').src=`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(u)}`;
+        document.getElementById('qrTitle').innerText=r; document.getElementById('printableArea').classList.remove('hidden');
+    }
+    function toggleTab(t) { document.getElementById('tab-list').style.display = t=='list'?'block':'none'; document.getElementById('tab-qr').classList.toggle('hidden', t!='qr'); }
+    function copyTicket() { navigator.clipboard.writeText(document.getElementById('ticketDisplay').innerText).then(() => alert("Tiket disalin!")); }
+    
+    function dlExcel() {
+        if(dataCache.length === 0) return alert("Data kosong");
+        let html = `<table border="1"><thead><tr style="background:#eee;"><th>ID</th><th>Waktu</th><th>Ruangan</th><th>Jenis</th><th>Pelapor</th><th>Deskripsi</th><th>Status</th><th>TL</th><th>Nama Pegawai</th><th>Umur</th><th>TTL</th><th>Gender</th><th>Jabatan</th><th>Waktu Kejadian</th><th>Jenis Detail</th><th>Saksi</th><th>Tempat Detail</th><th>Akibat</th><th>Ruangan Korban</th><th>Tindakan Awal</th><th>Tindakan Oleh</th><th>Grading</th><th>No WA</th><th>NIP</th><th>Status Pegawai</th><th>Inv Kondisi</th><th>Inv Tindakan</th><th>Inv Uraian</th><th>Inv Sumber</th><th>Inv Type</th><th>Inv Cedera</th><th>Inv Petugas</th></tr></thead><tbody>`;
+        dataCache.forEach(r => {
+            let tgl = new Date(r.Waktu).toLocaleString('id-ID');
+            html += `<tr><td>${r.ID_Tiket}</td><td>${tgl}</td><td>${r.Ruangan}</td><td>${r.Jenis_Insiden}</td><td>${r.Pelapor}</td><td>${r.Deskripsi}</td><td>${r.Status}</td><td>${r.Tindak_Lanjut}</td><td>${r.Nama_Pegawai||""}</td><td>${r.Umur||""}</td><td>${r.TTL||""}</td><td>${r.Gender||""}</td><td>${r.Jabatan||""}</td><td>${r.Waktu_Kejadian||""}</td><td>${r.Jenis_Kecelakaan_Detail||""}</td><td>${r.Saksi||""}</td><td>${r.Tempat_Detail||""}</td><td>${r.Akibat||""}</td><td>${r.Ruangan_Korban||""}</td><td>${r.Tindakan_Awal||""}</td><td>${r.Tindakan_Oleh||""}</td><td>${r.Grading||""}</td><td>${r.No_WA||""}</td><td>${r.NIP||""}</td><td>${r.Status_Pegawai||""}</td><td>${r.Inv_Kondisi||""}</td><td>${r.Inv_Tindakan||""}</td><td>${r.Inv_Uraian||""}</td><td>${r.Inv_Sumber||""}</td><td>${r.Inv_Type||""}</td><td>${r.Inv_Cedera||""}</td><td>${r.Inv_Petugas||""}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        let blob = new Blob(['\ufeff', html], {type: 'application/vnd.ms-excel'});
+        let a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "Laporan_K3_Lengkap.xls"; a.click();
+    }
+</script>
+</body>
+</html>
